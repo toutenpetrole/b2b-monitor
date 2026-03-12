@@ -1,0 +1,67 @@
+name: B2B Order Monitor
+
+on:
+  schedule:
+    # Toutes les heures, de 7h à 20h, du lundi au samedi
+    - cron: '0 7-20 * * 1-6'
+  workflow_dispatch:   # permet de lancer manuellement depuis GitHub
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v4
+
+      # Restaure le fichier d'état (commandes déjà vues) depuis le cache
+      - name: Restaurer l'état des commandes
+        uses: actions/cache@v4
+        with:
+          path: orders_state.json
+          key: orders-state-${{ runner.os }}
+          restore-keys: orders-state-
+
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installer les dépendances Python
+        run: pip install -r requirements.txt
+
+      - name: Installer Playwright + Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Lancer le monitoring
+        env:
+          # URL du site B2B
+          B2B_URL:        ${{ secrets.B2B_URL }}
+          # Compte 1
+          ACCOUNT1_NAME:  ${{ secrets.ACCOUNT1_NAME }}
+          ACCOUNT1_USER:  ${{ secrets.ACCOUNT1_USER }}
+          ACCOUNT1_PASS:  ${{ secrets.ACCOUNT1_PASS }}
+          # Compte 2
+          ACCOUNT2_NAME:  ${{ secrets.ACCOUNT2_NAME }}
+          ACCOUNT2_USER:  ${{ secrets.ACCOUNT2_USER }}
+          ACCOUNT2_PASS:  ${{ secrets.ACCOUNT2_PASS }}
+          # Compte 3
+          ACCOUNT3_NAME:  ${{ secrets.ACCOUNT3_NAME }}
+          ACCOUNT3_USER:  ${{ secrets.ACCOUNT3_USER }}
+          ACCOUNT3_PASS:  ${{ secrets.ACCOUNT3_PASS }}
+          # SMTP
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+          SMTP_USER:      ${{ secrets.SMTP_USER }}
+          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
+          SMTP_FROM:      ${{ secrets.SMTP_FROM }}
+          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+        run: python monitor.py
+
+      # Sauvegarde l'état mis à jour pour la prochaine exécution
+      - name: Sauvegarder l'état des commandes
+        if: always()
+        uses: actions/cache@v4
+        with:
+          path: orders_state.json
+          key: orders-state-${{ runner.os }}-${{ github.run_id }}
